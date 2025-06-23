@@ -1,0 +1,337 @@
+<!-- /views/configure.hbs -->
+<body>
+  <h1>Configure Tray Menu</h1>
+  <form id="menuForm">
+      <label for="dotColorSource">Dot color source:</label>
+      <select id="dotColorSource" name="dotColorSource">
+        <option value="gcpdot" {{#if (eq dotColorSource "gcpdot")}}selected{{/if}}>GCP dot</option>
+        <option value="processor" {{#if (eq dotColorSource "processor")}}selected{{/if}}>Processor use (not implemeted)</option>
+        <option value="ram" {{#if (eq dotColorSource "ram")}}selected{{/if}}>RAM use  (not implemeted)</option>
+      </select><br/>
+      <label for="trayIconRefreshMinutes">Tray icon refresh interval (minutes):</label>
+        <input type="number" id="trayIconRefreshMinutes" name="trayIconRefreshMinutes" min="5" max="60" value="{{trayIconRefreshMinutes}}" />
+      <br/>      
+      <button type="submit" style="margin-left: 1em;">Save</button>
+      <hr>
+      <fieldset>
+        <legend>
+          <button type="button" onclick="addItem()">Add Item</button>
+          <button type="submit">Save</button>
+        </legend>
+        <div id="items"></div>
+      </fieldset>
+      
+  </form>
+  <div id="contextMenu" class="context-menu">    
+    <div class="context-menu-item" onclick="duplicateItem()">
+      <span class="icon">🗐</span> Duplicate
+    </div>
+    <div class="context-menu-item" onclick="removeItem()">
+      <span class="icon">❌</span> Remove
+    </div>
+  </div>
+  <script>
+    "use strict";
+    let menuState = [];
+    let contextMenuItem = null;
+
+    const tray_context_menu_item_types = {{{json tray_context_menu_item_types}}};
+
+    function refreshFavicon() {
+      // Remove existing favicon links
+      document.querySelectorAll('link[rel="icon"]').forEach(link => link.remove());
+      // Add new favicon with cache-busting query
+      ['ico', 'png'].forEach(ext => {
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = ext === 'ico' ? 'image/x-icon' : 'image/png';
+        link.href = `/favicon.${ext}?ts=${Date.now()}`;
+        document.head.appendChild(link);
+      });
+    }
+
+    const trayIconRefreshMinutes = Number(document.getElementById("trayIconRefreshMinutes")?.value) || 5;
+    setInterval(refreshFavicon, trayIconRefreshMinutes * 60 * 1000);
+
+
+    async function loadItems() {
+        const response = await fetch("/get-menu");
+        const data = await response.json();
+        menuState = data.menu;
+        document.getElementById("dotColorSource").value = data.dotColorSource || "gcpdot";
+        renderMenu();
+    }
+
+    let draggedItemIndex = null;
+
+    function dragStart(event, index) {
+      draggedItemIndex = index;
+      event.dataTransfer.effectAllowed = "move";
+    }
+
+    function dragOver(event) {
+      event.preventDefault();
+    }
+
+    function drop(event, index) {
+      event.preventDefault();
+      if (draggedItemIndex !== null) {
+        const draggedItem = menuState[draggedItemIndex];
+        menuState.splice(draggedItemIndex, 1);
+        menuState.splice(index, 0, draggedItem);
+        reindexItems();
+        renderMenu();
+        draggedItemIndex = null;
+      }
+    }
+
+    function reindexItems() {
+      menuState.forEach((item, index) => {
+        item.index = index + 1;
+      });
+    }
+ function renderMenu() {
+  const itemsDiv = document.getElementById("items");
+  itemsDiv.innerHTML = "";
+  menuState.forEach((item, index) => {
+    const newItem = document.createElement("div");
+    newItem.className = "item";
+    newItem.draggable = true;
+    newItem.ondragstart = (event) => dragStart(event, index);
+    newItem.ondragover = dragOver;
+    newItem.ondrop = (event) => drop(event, index);
+    newItem.oncontextmenu = (event) => showContextMenu(event, index);
+    newItem.innerHTML = `
+      <label>Type: 
+        <select name="type" onchange="updateItemType(this, ${index})">
+          ${tray_context_menu_item_types.map(type => 
+            `<option value="${type}" ${item.type === type ? 'selected' : ''}>${type}</option>`
+          ).join('')}
+        </select>
+      </label>
+
+      <label>
+        Item: 
+        <input 
+          type="text" 
+          name="label" 
+          value="${item.type === 'separator' ? '<SEPARATOR>' : item.label}"
+          ${item.type === 'separator' ? 'disabled' : ''}
+          onchange="updateMenuState('label', this.value, ${index})"
+        >
+      </label>
+
+      ${renderNonSeparatorFields(item, index)}
+      ${renderProcessMonitorFields(item, index)}
+    `;
+    itemsDiv.appendChild(newItem);
+  });
+}
+
+    function updateMenuState(field, value, index) {
+      if (field === 'checked') {
+        menuState[index][field] = value === 'true';
+      } else {
+        menuState[index][field] = value;
+      }
+    }
+
+    function updateProcessConfig(field, value, index) {
+      if (!menuState[index].process_config) {
+        menuState[index].process_config = {};
+      }
+      menuState[index].process_config[field] = value;
+    }
+
+   function addItem() {
+    menuState.unshift({ label: "", command: "", type: "launch_cmd", icon: "", checked: false, index: 1 });
+    reindexItems();
+    renderMenu();
+  }
+
+    function updateItemType(select, index) {
+      const itemDiv = select.parentElement.parentElement;
+      const labelInput = itemDiv.querySelector('input[name="label"]');
+      const commandInput = itemDiv.querySelector('input[name="command"]');
+      
+      // Update the menu state first
+      menuState[index].type = select.value;
+      
+      if (select.value === 'separator') {
+        // Handle separator case
+        labelInput.value = '<SEPARATOR>';
+        labelInput.disabled = true;
+        if (commandInput) {
+          commandInput.value = '';
+          commandInput.disabled = true;
+        }
+        menuState[index].label = '<SEPARATOR>';
+        menuState[index].command = '';
+        menuState[index].icon = '';
+        menuState[index].checked = false;
+        menuState[index].process_config = undefined;
+      } else {
+        // Handle non-separator case
+        if (labelInput.value === '<SEPARATOR>') {
+          labelInput.value = '';
+          menuState[index].label = '';
+        }
+        labelInput.disabled = false;
+        
+        // Initialize default values based on type
+        if (select.value === 'process_monitor_on_off') {
+          menuState[index].process_config = menuState[index].process_config || {
+            executable: '',
+            workingDir: '',
+            title: ''
+          };
+        } else if (select.value === 'open_url') {
+          menuState[index].command = menuState[index].command || 'http://';
+        }
+      }
+    
+      // Re-render the entire menu to reflect all changes
+      renderMenu();
+    }
+
+    function showContextMenu(event, index) {
+      event.preventDefault();
+      contextMenuItem = index;
+      const contextMenu = document.getElementById("contextMenu");
+      contextMenu.style.display = "block";
+      contextMenu.style.left = `${event.pageX}px`;
+      contextMenu.style.top = `${event.pageY}px`;
+    }
+
+    function removeItem() {
+      menuState.splice(contextMenuItem, 1);
+      reindexItems();
+      renderMenu();
+      hideContextMenu();
+    }
+
+    function duplicateItem() {
+      const duplicatedItem = { ...menuState[contextMenuItem], index: 0 };
+      menuState.unshift(duplicatedItem);
+      reindexItems();
+      renderMenu();
+      hideContextMenu();
+    }
+
+    function hideContextMenu() {
+      const contextMenu = document.getElementById("contextMenu");
+      contextMenu.style.display = "none";
+      contextMenuItem = null;
+    }
+
+    function showStatusDialog(dialogId = 'updateDialog', type='okclose' ,  autoCloseDelay = undefined) {
+        switch(type){
+            case 'okclose':
+                const dialog = _$id(dialogId);
+                autoCloseDelay = autoCloseDelay ?? 4000;
+                dialog.showModal();
+                if (autoCloseDelay > 0) {
+                    const timeoutId = setTimeout(() => dialog.close(), autoCloseDelay);
+                    
+                    // Clear timeout if dialog is closed before the timeout
+                    dialog.addEventListener('close', () => {
+                        if (timeoutId) {
+                            clearTimeout(timeoutId);
+                        }
+                    }, { once: true });
+                }
+                break;
+            default:
+                console.error("Invalid dialog type");
+        }
+        
+    }
+
+    document.addEventListener("click", hideContextMenu);
+
+    document.getElementById("menuForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      console.log("Menu State before fetch:", menuState);
+      
+
+      //foreach element in menuState, check if it is a separator, if it is, remove the command field, set label field to <SEPARATOR>
+      menuState.forEach((item) => {
+        if((item.command === "" && item.label =="" )||  item.label === "<SEPARATOR>"){
+          item.command = "";
+          item.label = "<SEPARATOR>";
+          item.type = "separator";
+        }
+        if (item.label === "<SEPARATOR>") {
+          item.command = "";
+          item.type = "separator";
+        }
+        if(item.type === "open_url") {
+            const url = item.command.trim();
+            if (!url.match(/^.+?:\/\//i)) {
+                item.command = `http://${url}`;
+            }
+        }
+
+      });
+      await fetch("/update-menu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(menuState),
+      });
+      loadItems();
+      showStatusDialog('updateDialog', 'okclose', 2000);
+    });
+
+    loadItems();
+
+    function renderNonSeparatorFields(item, index) {
+      if (item.type === 'separator') return '';
+      
+      let extra = '';
+      if (item.type === '4chan_thread_filter') {
+        extra = `<div style="font-size:smaller;color:#666;">
+          Format: <code>board|filter</code> (e.g. <b>pol|ukraine general</b>)<br>
+          <a href="https://a.4cdn.org/boards.json" target="_blank">List of boards</a>
+        </div>`;
+      }
+      return `
+        <label>Command: <input type="text" name="command" value="${item.command}" onchange="updateMenuState('command', this.value, ${index})"></label>
+        <label>Icon: <input type="text" name="icon" value="${item.icon || ''}" onchange="updateMenuState('icon', this.value, ${index})"></label>
+        ${extra}
+        <label>Checked: <input type="checkbox" name="checked" ${item.checked ? 'checked' : ''} onchange="updateMenuState('checked', this.checked, ${index})"></label>
+      `;
+    }
+
+    function renderProcessMonitorFields(item, index) {
+      if (item.type !== 'process_monitor_on_off') return '';
+      
+      return `
+        <fieldset>
+          <legend>Process Config</legend>
+          <label>Executable: <input type="text" name="executable" value="${item.process_config?.executable || ''}" onchange="updateProcessConfig('executable', this.value, ${index})"></label>
+          <label>Working Directory: <input type="text" name="workingDir" value="${item.process_config?.workingDir || ''}" onchange="updateProcessConfig('workingDir', this.value, ${index})"></label>
+          <label>Title: <input type="text" name="title" value="${item.process_config?.title || ''}" onchange="updateProcessConfig('title', this.value, ${index})"></label>
+          <label>Arguments: <input type="text" name="arguments" value="${Array.isArray(item.process_config?.arguments) ? item.process_config.arguments.join(' ') : item.process_config?.arguments || ''}" 
+            onchange="updateProcessConfig('arguments', this.value, ${index})"
+            placeholder="--arg1 value1 --arg2 value2"></label>
+        </fieldset>
+      `;
+    }
+
+    document.getElementById("menuForm").addEventListener("submit", async function(e) {
+        e.preventDefault();
+        const dotColorSource = document.getElementById("dotColorSource").value;
+        // send menuState and dotColorSource to backend
+        await fetch("/update-menu", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                dotColorSource,
+                menu: menuState
+            })
+        });
+        
+    });
+
+    window.onload = loadItems;
+  </script>

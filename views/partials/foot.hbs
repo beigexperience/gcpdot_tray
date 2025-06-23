@@ -1,0 +1,19 @@
+<dialog id="updateDialog" class="dialog okclose" type="okclose"  style="text-align: center;">
+  <div class="success-message dialog-message">    
+    <span>✓</span>
+    <p>Menu updated successfully!</p>    
+    <button type="ok" onclick="this.closest('dialog').close()">OK</button>
+  </div>
+</dialog>
+<script>
+  const u_dialogs = _$$('dialog.okclose');
+    u_dialogs.forEach(dialog => {
+        
+        dialog.addEventListener('click', e => {
+            console.log(e,e.target.attributes.type);
+            e.target.closest('dialog').close();            
+        });
+    });
+</script>
+</body>
+</html>
