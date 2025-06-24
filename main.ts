@@ -37,7 +37,8 @@ const VERSION = "0.1.5-20250624";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
 const FUDGE_ICON_FACTOR = 0;
-
+const debounce_tray_update_ms = 200;
+const fourchanThreadApiPolling_ms = 2 * 60 *1000;
 let userRequestedQuit = false;
 
 const HANDLEBARS_CONFIG: HandlebarsConfig = {
@@ -207,7 +208,7 @@ function queueUpdateTray(silent = false) {
       console.warn("updateTray error (ignored):", e);
     });
     trayUpdateTimeout = undefined;
-  }, 500);
+  }, debounce_tray_update_ms);
 }
 
 async function resolve_icon(icon?: string): Promise<string | undefined> {
@@ -241,11 +242,12 @@ async function getDynamicTrayIcon(): Promise<string> {
     let idx:number;
      if (dotColorSource === "processor") {      
       const map_cpu_to = 13;
-      
       const cpuUtil = await get_cpu_utilization(); // float 0.0 to 1.0
       if (cpuUtil >= 0.95) {
         idx = 1;
-      } else {
+      } else if (cpuUtil == 0) {
+        idx=0;
+      }  else {
         // Map 0.0 (idle) to 13, 0.95 (just below 95%) to 1
         idx = Math.max(1, Math.min(13, 13 - Math.round(cpuUtil / 0.95 * 12) + 1));
       }
@@ -294,9 +296,6 @@ async function getDynamicTrayIcon(): Promise<string> {
 //   const icon = "icon.ico";
 //   return icon;
 // }
-
-
-
 
 // Load menu items from config file if it exists
 async function loadConfig() {
@@ -804,10 +803,20 @@ type cpu_util_CpuTimes = {
 };
 
 function cpu_util_cpuSnapshot(): cpu_util_CpuTimes[] {
-  let times = os.cpus().map(cpu => cpu.times);
-  console.log(times);
-  return times;
-
+  try {    
+    let times = os.cpus().map(cpu => cpu.times);    
+    return times;
+  } catch (e) {
+    // If os.cpus() fails, return a single CPU with all zero values
+    console.warn("cpu_util_cpuSnapshot failed, returning zeros:", e);
+    return [{
+      user: 0,
+      nice: 0,
+      sys: 0,
+      idle: 0,
+      irq: 0,
+    }];
+  }
 }
 
 function cpu_util_calculateCpuUsage(prev: cpu_util_CpuTimes[], curr: cpu_util_CpuTimes[]): number[] {
@@ -1034,8 +1043,8 @@ async function findAvailablePort(startPort: number, maxRetries: number): Promise
     }
   }
 
-  setInterval(checkAndUpdateAll, 2 * 60 * 1000); // every 2 minutes
-  // Optionally, run once at startup:
+  setInterval(checkAndUpdateAll,fourchanThreadApiPolling_ms); // every 2 minutes
+  
   checkAndUpdateAll();
 }
 

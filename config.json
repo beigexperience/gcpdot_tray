@@ -1,5 +1,5 @@
 {
-  "dotColorSource": "processor",
+  "dotColorSource": "gcpdot",
   "trayIconRefreshMinutes": 1,
   "menu": [
     {
