@@ -36,7 +36,7 @@ import * as os from "node:os";
 const VERSION = "0.1.5-20250624";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
-const FUDGE_ICON_FACTOR = 0;
+const FUDGE_ICON_FACTOR = 1;
 const debounce_tray_update_ms = 200;
 const fourchanThreadApiPolling_ms = 2 * 60 *1000;
 let userRequestedQuit = false;
@@ -254,7 +254,23 @@ async function getDynamicTrayIcon(): Promise<string> {
       // idx = Math.max(1, Math.min(map_cpu_to, idx));
       return `./icons/dot${idx}.${ext}`;
     } else if (dotColorSource === "ram") {
-      idx=0;
+      const ram_clamp_min_idx =  1;
+      const ram_clamp_max_idx = 10;
+      const ram_scale_skew = 1; // 0.95 utilization maps to max index
+      const ramUtil = await get_ram_utilization(); // float 0.0 to 1.0
+      console.log("RAM Utilization:", ramUtil);
+      if (ramUtil >= 0.90) {
+        idx = 1;
+      } else if (ramUtil == 0) {
+        idx = 0;
+      } else {
+        
+       
+        idx = Math.max(ram_clamp_min_idx, Math.min(ram_clamp_max_idx, ram_clamp_max_idx - Math.round(ramUtil / ram_scale_skew * (ram_clamp_max_idx - ram_clamp_min_idx)) + 1));
+      }
+      console.log(idx);
+      // console.warn("RAM color source is not implemented yet");
+      // idx=0;
       return `./icons/dot${idx}.${ext}`;
     }
 
@@ -793,6 +809,21 @@ const callback_func_external = {
 
 const index_html_content_hndlbars = await handlebars.renderView("index", { name: "Alosaur" });
 
+// ram utilization functions
+
+async function get_ram_utilization(): Promise<number> {
+  try {
+    const usedMem = os.totalmem() - os.freemem();
+    const totalMem = os.totalmem();
+    return totalMem > 0 ? usedMem / totalMem : 0;
+  } catch (e) {
+    console.warn("get_ram_utilization failed, returning 1:", e);
+    return 1;
+  }
+}
+
+// /ram utilization functions
+
 // cpu utilization functions
 type cpu_util_CpuTimes = {
   user: number;
@@ -830,6 +861,8 @@ function cpu_util_calculateCpuUsage(prev: cpu_util_CpuTimes[], curr: cpu_util_Cp
   });
 }
 
+
+
 let prevcpu_util_cpuSnapshot = cpu_util_cpuSnapshot();
 
 async function get_cpu_utilization(): Promise<number> {
@@ -839,6 +872,8 @@ async function get_cpu_utilization(): Promise<number> {
   // Return average utilization (0.0 to 1.0)
   return usages.reduce((sum, u) => sum + u, 0) / usages.length;
 }
+
+
 
 // /cpu utilization functions
 
