@@ -36,8 +36,10 @@ import SysTray, { Menu, MenuItem } from "https://deno.land/x/systray/mod.ts";
 import { open } from "https://deno.land/x/open@v0.0.5/index.ts";
 import { Handlebars, HandlebarsConfig } from 'https://deno.land/x/handlebars/mod.ts';
 
+const VERSION = "0.1.5-20250624";
+
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
-const FUDGE_ICON_FACTOR = 1;
+const FUDGE_ICON_FACTOR = 0;
 
 let userRequestedQuit = false;
 
