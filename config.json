@@ -1,6 +1,6 @@
 {
-  "dotColorSource": "gcpdot",
-  "trayIconRefreshMinutes": 5,
+  "dotColorSource": "processor",
+  "trayIconRefreshMinutes": 0.25,
   "menu": [
     {
       "label": "/skg/ - no bread",

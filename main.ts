@@ -236,19 +236,26 @@ async function resolve_icon(icon?: string): Promise<string | undefined> {
 // Fetch the color and decide which icon to use
 async function getDynamicTrayIcon(): Promise<string> {
   try {
-    // const res = await fetch("https://get-gcp-dot-color.deno.dev/?json=true&nolerp=true");
+    const { os } = Deno.build;
+    const ext = os === "windows" ? "ico" : "png";
+
+     if (dotColorSource === "processor") {
+      const cpuUtil = await get_cpu_utilization(); // 0.0 to 1.0
+      // Map 0.0 (idle) to 12, 1.0 (busy) to 1
+      let idx = 12 - Math.round(cpuUtil * 11); // 12..1
+      idx = Math.max(1, Math.min(12, idx));
+      return `./icons/dot${idx}.${ext}`;
+    }
+
+    // Default: gcpdot
     const res = await fetch(GCP_DOT_COLOR_AS_JSON);
     const data = await res.json();
     const rgb: [number, number, number] = data.crgb;
     let idx = findClosestDotIndex(rgb);        
-    idx = Math.max(0, Math.min(14, idx + FUDGE_ICON_FACTOR));
-    
-    const { os } = Deno.build;
-    const ext = os === "windows" ? "ico" : "png";
+    idx = Math.max(0, Math.min(13, idx + FUDGE_ICON_FACTOR));
     return `./icons/dot${idx}.${ext}`;
   } catch (e) {
     console.error("Failed to fetch dynamic tray icon, using dot0.", e);
-    // fallback to dot0 icon
     const { os } = Deno.build;
     const ext = os === "windows" ? "ico" : "png";
     return `./icons/dot0.${ext}`;
@@ -289,7 +296,7 @@ async function loadConfig() {
     const loadedConfig: AppConfig = JSON.parse(configText);
 
     dotColorSource = loadedConfig.dotColorSource ?? "gcpdot";
-    trayIconRefreshMinutes = Math.max(5, Math.min(60, loadedConfig.trayIconRefreshMinutes ?? 5)); 
+    trayIconRefreshMinutes = Math.max(0.1, Math.min(120, loadedConfig.trayIconRefreshMinutes ?? 5)); 
 
     userMenuItems = loadedConfig.menu.filter((item: MenuItemConfig) => {
       const hasValidIcon = isValidIcon(item.icon);
@@ -862,6 +869,8 @@ const HTML_CONTENT_CONFIGURE = await handlebars.renderView("configure", {
   trayIconRefreshMinutes
 });
 
+
+
 // HTTP request handler
 async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -893,6 +902,12 @@ async function handler(req: Request): Promise<Response> {
       if (body.dotColorSource) {
         dotColorSource = body.dotColorSource;
       }
+
+      if (body.trayIconRefreshMinutes !== undefined) {
+        trayIconRefreshMinutes = Math.max(0.1, Math.min(120, Number(body.trayIconRefreshMinutes)));
+        restartTrayIconRefreshInterval();
+      }
+
       userMenuItems = (body.menu ?? body).filter((item: MenuItemConfig) => {
         
         if (item.type === "separator") return true;
@@ -957,19 +972,6 @@ async function findAvailablePort(startPort: number, maxRetries: number): Promise
 }
 
 
-async function start() {
-  const { os } = Deno.build;
-  if (os === "darwin") {
-    throw new Error("macOS is not supported.");
-  }
-
-  await loadConfig();
-
-
-
-  
-  PORT = await findAvailablePort(INITIAL_PORT, MAX_RETRIES);
-
   function start4chanThreadFilterPolling() {
   async function checkAndUpdateAll() {
     let updated = false;
@@ -1020,6 +1022,28 @@ async function start() {
   checkAndUpdateAll();
 }
 
+let trayIconRefreshIntervalHandle: number | undefined;
+function restartTrayIconRefreshInterval() {
+  if (trayIconRefreshIntervalHandle) clearInterval(trayIconRefreshIntervalHandle);
+  trayIconRefreshIntervalHandle = setInterval(queueUpdateTray, trayIconRefreshMinutes * 60 * 1000);
+}
+
+async function start() {
+  const { os } = Deno.build;
+  if (os === "darwin") {
+    throw new Error("macOS is not supported.");
+  }
+
+  await loadConfig();
+
+
+
+  
+  PORT = await findAvailablePort(INITIAL_PORT, MAX_RETRIES);
+
+
+
+
 
   start4chanThreadFilterPolling();
 
@@ -1033,11 +1057,13 @@ async function start() {
   PROCESS_CHECK_INTERVAL_HANDLE = setInterval(updateProcessStatuses, PROCESS_CHECK_INTERVAL);
 
   
+  
 
   // Start the web server
   Deno.serve({ port: PORT, hostname: HOST }, handler);
   console.log(`Server running at http://${HOST}:${PORT}/`);
-  setInterval(queueUpdateTray, trayIconRefreshMinutes * 60 * 1000);
+
+  restartTrayIconRefreshInterval();
 
 }
 

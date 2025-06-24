@@ -9,7 +9,7 @@
         <option value="ram" {{#if (eq dotColorSource "ram")}}selected{{/if}}>RAM use  (not implemeted)</option>
       </select><br/>
       <label for="trayIconRefreshMinutes">Tray icon refresh interval (minutes):</label>
-        <input type="number" id="trayIconRefreshMinutes" name="trayIconRefreshMinutes" min="5" max="60" value="{{trayIconRefreshMinutes}}" />
+        <input type="number" id="trayIconRefreshMinutes" name="trayIconRefreshMinutes" step="0.01" min="0" max="120" step="0.1" value="{{trayIconRefreshMinutes}}" />
       <br/>      
       <button type="submit" style="margin-left: 1em;">Save</button>
       <hr>
@@ -323,12 +323,15 @@
     document.getElementById("menuForm").addEventListener("submit", async function(e) {
         e.preventDefault();
         const dotColorSource = document.getElementById("dotColorSource").value;
+        const trayIconRefreshMinutes = Number(document.getElementById("trayIconRefreshMinutes").value);
+
         // send menuState and dotColorSource to backend
         await fetch("/update-menu", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 dotColorSource,
+                trayIconRefreshMinutes,
                 menu: menuState
             })
         });
