@@ -238,13 +238,21 @@ async function getDynamicTrayIcon(): Promise<string> {
   try {
     const { os } = Deno.build;
     const ext = os === "windows" ? "ico" : "png";
-
-     if (dotColorSource === "processor") {
-      const map_cpu_to = 13
-      const cpuUtil = await get_cpu_utilization(); // 0.0 to 1.0
-      // Map 0.0 (idle) to 13, 1.0 (busy) to 1
-      let idx = map_cpu_to - Math.round(cpuUtil * map_cpu_to-1); // 13..1
-      idx = Math.max(1, Math.min(map_cpu_to, idx));
+    let idx:number;
+     if (dotColorSource === "processor") {      
+      const map_cpu_to = 13;
+      
+      const cpuUtil = await get_cpu_utilization(); // float 0.0 to 1.0
+      if (cpuUtil >= 0.95) {
+        idx = 1;
+      } else {
+        // Map 0.0 (idle) to 13, 0.95 (just below 95%) to 1
+        idx = Math.max(1, Math.min(13, 13 - Math.round(cpuUtil / 0.95 * 12) + 1));
+      }
+      // idx = Math.max(1, Math.min(map_cpu_to, idx));
+      return `./icons/dot${idx}.${ext}`;
+    } else if (dotColorSource === "ram") {
+      idx=0;
       return `./icons/dot${idx}.${ext}`;
     }
 
@@ -252,7 +260,7 @@ async function getDynamicTrayIcon(): Promise<string> {
     const res = await fetch(GCP_DOT_COLOR_AS_JSON);
     const data = await res.json();
     const rgb: [number, number, number] = data.crgb;
-    let idx = findClosestDotIndex(rgb);        
+    idx = findClosestDotIndex(rgb);        
     idx = Math.max(0, Math.min(13, idx + FUDGE_ICON_FACTOR));
     return `./icons/dot${idx}.${ext}`;
   } catch (e) {
@@ -796,7 +804,10 @@ type cpu_util_CpuTimes = {
 };
 
 function cpu_util_cpuSnapshot(): cpu_util_CpuTimes[] {
-  return os.cpus().map(cpu => cpu.times);
+  let times = os.cpus().map(cpu => cpu.times);
+  console.log(times);
+  return times;
+
 }
 
 function cpu_util_calculateCpuUsage(prev: cpu_util_CpuTimes[], curr: cpu_util_CpuTimes[]): number[] {
