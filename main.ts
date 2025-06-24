@@ -1,17 +1,11 @@
 //////////////////////////////////////
 //
-// @todo: proper github repo for this
 // @todo: command not found shouldn't crash systray
 // @todo: sanitization general and specific
-// @todo: fallback: default menu items
 // @todo: communication between tray and web interface - realtime websockets? event passing
-// @todo: get rid of alerts, use dismissable dialogs
 // @todo: reorder should change elements while draging also without waiting to drop
-// @todo: add icons to menu items? (optional)
-// @todo: make icon configurable through config file and web interface
 // @todo: investigate what happens when running under WSL
-// @todo: see if compile is broken
-// @todo: test on Raspi, Debian, Ubuntu, Arch
+// @todo: see if compile is broken on Raspi, Debian, Ubuntu, Arch
 // @todo: Mobile interface ?? Context menu on touch screen ?? Drag and drop on touch screen ??
 // @todo: configuration allowable hosts and ports
 // @todo: https not supported, investigate
@@ -30,6 +24,9 @@
 // @todo: show state of checkboxable things on the web panel
 // @todo: have a config is checkboxable y/n on the panel
 // @todo: right click item -> context option to toggle from web panel
+//
+// @todo: transparency in icons in context menu is currently broken
+// @todo: config web panel css/style
 /////////////////////////////////////////
 
 import SysTray, { Menu, MenuItem } from "https://deno.land/x/systray/mod.ts";
@@ -211,6 +208,29 @@ function queueUpdateTray() {
     });
     trayUpdateTimeout = undefined;
   }, 500);
+}
+
+async function resolve_icon(icon?: string): Promise<string | undefined> {
+  if (!icon) return undefined;
+  if (icon.startsWith("http://") || icon.startsWith("https://")) {
+    // Download to temp dir
+    const ext = icon.endsWith(".ico") ? ".ico" : ".png";
+    const tempDir = `${Deno.env.get("TEMP") || Deno.env.get("TMPDIR") || "/tmp"}/gcpdot_tray_icons`;
+    try { await Deno.mkdir(tempDir, { recursive: true }); } catch {}
+    // Use a hash of the URL as filename to avoid collisions
+    const hash = Array.from(new TextEncoder().encode(icon)).reduce((a, b) => ((a << 5) - a) + b, 0);
+    const tempPath = `${tempDir}/icon_${hash}${ext}`;
+    // Download only if not already present
+    if (!(await file_exists(tempPath))) {
+      const resp = await fetch(icon);
+      if (!resp.ok) throw new Error(`Failed to download icon: ${icon}`);
+      const data = new Uint8Array(await resp.arrayBuffer());
+      await Deno.writeFile(tempPath, data);
+    }
+    return tempPath;
+  }
+  // Local file, just return as is
+  return icon;
 }
 
 // Fetch the color and decide which icon to use
@@ -650,21 +670,23 @@ async function updateTray() {
     trayKilling = false;
   }
 
-  // Now create the new tray
+   // Now create the new tray
   const menu: CustomMenu = {
     icon,
     isTemplateIcon: false,
     title: "Tray app title",
     tooltip: "Tray app tooltip",
-    items: [...userMenuItems, ...systemMenuItems].map((item) => ({
-      title: item.label,
-      tooltip: item?.tooltip ?? item.label,
-      checked: item?.checked ?? false,
-      enabled: item?.enabled ?? true,
-      hidden: item?.hidden ?? false,
-      icon: item.icon,
-      click: async () => click_handler(item, item.type, item.command),
-    })),
+    items: await Promise.all(
+      [...userMenuItems, ...systemMenuItems].map(async (item) => ({
+        title: item.label,
+        tooltip: item?.tooltip ?? item.label,
+        checked: item?.checked ?? false,
+        enabled: item?.enabled ?? true,
+        hidden: item?.hidden ?? false,
+        icon: await resolve_icon(item.icon), 
+        click: async () => click_handler(item, item.type, item.command),
+      }))
+    ),
   };
 
   tray = new SysTray({
