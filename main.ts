@@ -32,7 +32,7 @@
 import SysTray, { Menu, MenuItem } from "https://deno.land/x/systray/mod.ts";
 import { open } from "https://deno.land/x/open@v0.0.5/index.ts";
 import { Handlebars, HandlebarsConfig } from 'https://deno.land/x/handlebars/mod.ts';
-
+import * as os from "node:os";
 const VERSION = "0.1.5-20250624";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
@@ -420,7 +420,6 @@ async function file_exists(path: string): Promise<boolean> {
 const operationQueue: Promise<void>[] = [];
 let isProcessingQueue = false;
 
-
 async function processOperationQueue() {
   if (isProcessingQueue) return;
   isProcessingQueue = true;
@@ -776,6 +775,41 @@ const callback_func_external = {
 
 const index_html_content_hndlbars = await handlebars.renderView("index", { name: "Alosaur" });
 
+// cpu utilization functions
+type cpu_util_CpuTimes = {
+  user: number;
+  nice: number;
+  sys: number;
+  idle: number;
+  irq: number;
+};
+
+function cpu_util_cpuSnapshot(): cpu_util_CpuTimes[] {
+  return os.cpus().map(cpu => cpu.times);
+}
+
+function cpu_util_calculateCpuUsage(prev: cpu_util_CpuTimes[], curr: cpu_util_CpuTimes[]): number[] {
+  return curr.map((c, i) => {
+    const p = prev[i];
+    const idleDelta = c.idle - p.idle;
+    const totalDelta =
+      (c.user + c.nice + c.sys + c.idle + c.irq) -
+      (p.user + p.nice + p.sys + p.idle + p.irq);
+    return totalDelta > 0 ? 1 - idleDelta / totalDelta : 0;
+  });
+}
+
+let prevcpu_util_cpuSnapshot = cpu_util_cpuSnapshot();
+
+async function get_cpu_utilization(): Promise<number> {
+  const curr = cpu_util_cpuSnapshot();
+  const usages = cpu_util_calculateCpuUsage(prevcpu_util_cpuSnapshot, curr);
+  prevcpu_util_cpuSnapshot = curr;
+  // Return average utilization (0.0 to 1.0)
+  return usages.reduce((sum, u) => sum + u, 0) / usages.length;
+}
+
+// /cpu utilization functions
 
 //  interface for the config file
 interface AppConfig {
