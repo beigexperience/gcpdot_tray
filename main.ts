@@ -36,7 +36,7 @@ import * as os from "node:os";
 const VERSION = "0.1.5-20250624";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
-const FUDGE_ICON_FACTOR = 1;
+const FUDGE_ICON_FACTOR = 0; // @todo: fix the dot's current color on backend ??? we're off by one somewhere
 const debounce_tray_update_ms = 200;
 const fourchanThreadApiPolling_ms = 2 * 60 *1000;
 let userRequestedQuit = false;
