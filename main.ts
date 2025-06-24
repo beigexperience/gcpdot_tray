@@ -504,6 +504,8 @@ async function click_handler(item: any, type: MenuItemConfig['type'], command: M
               await saveConfig();
               queueUpdateTray();
             }
+            // Open the board page if no bread
+            await openURL(`https://boards.4chan.org/${board}/`);
             console.log(`No matching threads found for filter: "${filter}" on /${board}/`);
           }
         } catch (e) {
