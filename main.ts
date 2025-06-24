@@ -198,12 +198,12 @@ let updateTrayPromise: Promise<void> = Promise.resolve();
 
 let trayUpdateTimeout: number | undefined;
 
-function queueUpdateTray() {
+function queueUpdateTray(silent = false) {
   if (trayUpdateTimeout) {
     clearTimeout(trayUpdateTimeout);
   }
   trayUpdateTimeout = setTimeout(() => {
-    updateTrayPromise = updateTrayPromise.then(() => updateTray()).catch((e) => {
+    updateTrayPromise = updateTrayPromise.then(() => updateTray(silent)).catch((e) => {
       console.warn("updateTray error (ignored):", e);
     });
     trayUpdateTimeout = undefined;
@@ -240,10 +240,11 @@ async function getDynamicTrayIcon(): Promise<string> {
     const ext = os === "windows" ? "ico" : "png";
 
      if (dotColorSource === "processor") {
+      const map_cpu_to = 13
       const cpuUtil = await get_cpu_utilization(); // 0.0 to 1.0
-      // Map 0.0 (idle) to 12, 1.0 (busy) to 1
-      let idx = 12 - Math.round(cpuUtil * 11); // 12..1
-      idx = Math.max(1, Math.min(12, idx));
+      // Map 0.0 (idle) to 13, 1.0 (busy) to 1
+      let idx = map_cpu_to - Math.round(cpuUtil * map_cpu_to-1); // 13..1
+      idx = Math.max(1, Math.min(map_cpu_to, idx));
       return `./icons/dot${idx}.${ext}`;
     }
 
@@ -653,7 +654,7 @@ let trayKilling = false;
 
 
 // Create or update the tray icon
-async function updateTray() {
+async function updateTray(silent=false) {
   tray_updating = true;
   const icon = await getDynamicTrayIcon();
 
@@ -710,7 +711,9 @@ async function updateTray() {
   });
 
   tray.on("exit", () => {
-    console.log(`Tray exited${tray_updating ? " (updating)" : ""}`);
+    if (!silent){
+      console.log(`Tray exited${tray_updating ? " (updating)" : ""}`);
+    }
     if (userRequestedQuit && !tray_updating) {
       Deno.exit();
     }
@@ -722,7 +725,9 @@ async function updateTray() {
   });
 
   await tray.ready();
-  console.log(`Tray is ready${tray_updating ? " (updating)" : ""}`);
+  if (!silent) {   
+    console.log(`Tray is ready${tray_updating ? " (updating)" : ""}`);
+  }
 }
 
 async function updateProcessStatuses() {
@@ -745,8 +750,7 @@ async function updateProcessStatuses() {
 
   if (needsUpdate) {
     await saveConfig();
-    // await updateTray();
-    queueUpdateTray();
+      queueUpdateTray(true); 
   }
 }
 
@@ -890,6 +894,7 @@ async function handler(req: Request): Promise<Response> {
   } else if (url.pathname === "/get-menu") {
     return new Response(JSON.stringify({
       dotColorSource,
+      trayIconRefreshMinutes,
       menu: userMenuItems
     }), {
       headers: { "Content-Type": "application/json" },
@@ -1013,7 +1018,8 @@ async function findAvailablePort(startPort: number, maxRetries: number): Promise
     }
     if (updated) {
       await saveConfig();
-      queueUpdateTray();
+        queueUpdateTray(true);
+
     }
   }
 
@@ -1025,7 +1031,8 @@ async function findAvailablePort(startPort: number, maxRetries: number): Promise
 let trayIconRefreshIntervalHandle: number | undefined;
 function restartTrayIconRefreshInterval() {
   if (trayIconRefreshIntervalHandle) clearInterval(trayIconRefreshIntervalHandle);
-  trayIconRefreshIntervalHandle = setInterval(queueUpdateTray, trayIconRefreshMinutes * 60 * 1000);
+  trayIconRefreshIntervalHandle = setInterval(() => queueUpdateTray(true), trayIconRefreshMinutes * 60 * 1000);
+
 }
 
 async function start() {

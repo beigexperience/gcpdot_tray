@@ -1,6 +1,6 @@
 {
   "dotColorSource": "processor",
-  "trayIconRefreshMinutes": 0.25,
+  "trayIconRefreshMinutes": 1,
   "menu": [
     {
       "label": "/skg/ - no bread",

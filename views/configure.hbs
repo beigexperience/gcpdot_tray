@@ -55,11 +55,12 @@
 
 
     async function loadItems() {
-        const response = await fetch("/get-menu");
-        const data = await response.json();
-        menuState = data.menu;
-        document.getElementById("dotColorSource").value = data.dotColorSource || "gcpdot";
-        renderMenu();
+          const response = await fetch("/get-menu");
+          const data = await response.json();
+          menuState = data.menu;
+          document.getElementById("dotColorSource").value = data.dotColorSource || "gcpdot";
+          document.getElementById("trayIconRefreshMinutes").value = data.trayIconRefreshMinutes ?? 5; 
+          renderMenu();
     }
 
     let draggedItemIndex = null;
