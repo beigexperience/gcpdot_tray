@@ -3,7 +3,7 @@
   "trayIconRefreshMinutes": 5,
   "menu": [
     {
-      "label": "/skg/",
+      "label": "/skg/ - no bread",
       "command": "pol|/skg/",
       "type": "4chan_thread_filter",
       "icon": "",
