@@ -6,7 +6,7 @@
       "label": "/skg/ - no bread",
       "command": "pol|/skg/",
       "type": "4chan_thread_filter",
-      "icon": "",
+      "icon": "https://s.4cdn.org/image/favicon.ico",
       "checked": false,
       "index": 1
     },

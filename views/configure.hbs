@@ -298,7 +298,9 @@
         <label>Command: <input type="text" name="command" value="${item.command}" onchange="updateMenuState('command', this.value, ${index})"></label>
         <label>Icon: <input type="text" name="icon" value="${item.icon || ''}" onchange="updateMenuState('icon', this.value, ${index})"></label>
         ${extra}
-        <label>Checked: <input type="checkbox" name="checked" ${item.checked ? 'checked' : ''} onchange="updateMenuState('checked', this.checked, ${index})"></label>
+        ${!(item.type === '4chan_thread_filter' || item.type === 'open_url') ? 
+          `<label>Checked: <input type="checkbox" name="checked" ${item.checked ? 'checked' : ''} onchange="updateMenuState('checked', this.checked, ${index})"></label>` 
+          : ''}
       `;
     }
 
