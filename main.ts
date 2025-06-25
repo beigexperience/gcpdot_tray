@@ -1,33 +1,34 @@
-//////////////////////////////////////
+////////////////////////////////////////////////////////
 //
-// @todo: command not found shouldn't crash systray
-// @todo: sanitization general and specific
-// @todo: communication between tray and web interface - realtime websockets? event passing
-// @todo: reorder should change elements while draging also without waiting to drop
-// @todo: investigate what happens when running under WSL
-// @todo: see if compile is broken on Raspi, Debian, Ubuntu, Arch
-// @todo: Mobile interface ?? Context menu on touch screen ?? Drag and drop on touch screen ??
-// @todo: configuration allowable hosts and ports
-// @todo: https not supported, investigate
-// @todo: investigate if it is possible to have a single binary with all the necessary files 
+//   @todo: command not found shouldn't crash systray
+//   @todo: sanitization general and specific
+//   @todo: communication between tray and web interface - realtime websockets? event passing
+//   @todo: reorder should change elements while draging also without waiting to drop
+//   @todo: investigate what happens when running under WSL
+//   @todo: see if compile is broken on Raspi, Debian, Ubuntu, Arch
+//   @todo: Mobile interface ?? Context menu on touch screen ?? Drag and drop on touch screen ??
+//   @todo: configuration allowable hosts and ports
+//   @todo: https not supported, investigate
+//   @todo: investigate if it is possible to have a single binary with all the necessary files 
 //              possible with temp file unpacking for icons, would need to turn exe/binary for icon to hex and write it, anti-vir might complain
 //              cosmopolitan redbean?? How dould Deno work with that
 //              for windows replace context menu lib with Powershell and load system dlls/ .net C# shit as FFI
 //              Deno 2.0/jsr actually working node library go_systray ? 
 //              Use cosmopolitan to install Deno, fetch script from github and fetch required dlls instead?
-// @todo: consider:
+//   @todo: consider:
 //                        Modify the go code myself???? 
 //                        https://github.com/getlantern/systray/blob/master/systray_windows.go
 // 
-// @todo: write types for the menu items in config.json, also make menu item generators
-// @todo: make it so callbacks are loadable from file??? possible pain in the ass
-// @todo: show state of checkboxable things on the web panel
-// @todo: have a config is checkboxable y/n on the panel
-// @todo: right click item -> context option to toggle from web panel
+//   @todo: write types for the menu items in config.json, also make menu item generators
+//   @todo: make it so callbacks are loadable from file??? possible pain in the ass
+//   @todo: show state of checkboxable things on the web panel
+//   @todo: have a config is checkboxable y/n on the panel
+//   @todo: right click item -> context option to toggle from web panel
 //
-// @todo: transparency in icons in context menu is currently broken
-// @todo: config web panel css/style
-/////////////////////////////////////////
+//   @todo: transparency in icons in context menu is currently broken
+//   @todo: config web panel css/style
+//
+////////////////////////////////////////////////////////
 
 import SysTray, { Menu, MenuItem } from "https://deno.land/x/systray/mod.ts";
 import { open } from "https://deno.land/x/open@v0.0.5/index.ts";
@@ -36,7 +37,7 @@ import * as os from "node:os";
 const VERSION = "0.1.5-20250624";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
-const FUDGE_ICON_FACTOR = 0; // @todo: fix the dot's current color on backend ??? we're off by one somewhere
+const FUDGE_ICON_FACTOR = 1; // @todo: fix the dot's current color on backend ??? we're off by one somewhere
 const debounce_tray_update_ms = 200;
 const fourchanThreadApiPolling_ms = 2 * 60 *1000;
 let userRequestedQuit = false;
