@@ -69,7 +69,7 @@ const INITIAL_PORT = 8992;
 const MAX_RETRIES = 10;
 const HOST = "127.0.0.1";
 let tray: SysTray | null = null;
-var tray_updating = false;
+let tray_updating = false;
 let PORT = INITIAL_PORT;
 
 const tray_context_menu_item_types = ["process_monitor_on_off","launch_cmd", "open_url", "interface_command", "separator","callback_with_cache","4chan_thread_filter",""];
@@ -242,7 +242,7 @@ async function getDynamicTrayIcon(): Promise<string> {
     let idx:number;
      if (dotColorSource === "processor") {      
       const map_cpu_to = 13;
-      const cpuUtil = await get_cpu_utilization(); // float 0.0 to 1.0
+      const cpuUtil =  get_cpu_utilization(); // float 0.0 to 1.0
       if (cpuUtil >= 0.95) {
         idx = 1;
       } else if (cpuUtil == 0) {
@@ -475,33 +475,21 @@ function queueOperation(operation: Promise<void>) {
   processOperationQueue();
 }
 
-function parseCommandAndArgs(commandString: string): { command: string; args: string[] } {
-  const parts: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < commandString.length; i++) {
-    const char = commandString[i];
-    
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ' ' && !inQuotes) {
-      if (current) {
-        parts.push(current);
-        current = '';
-      }
-    } else {
-      current += char;
+async function parseCommandAndArgs(commandString: string): Promise<{ command: string; args: string[] }> {
+  // Split by spaces, but keep quoted substrings together
+  const parts = commandString.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+  // Try to find the longest prefix that is a valid file
+  for (let i = parts.length; i > 0; i--) {
+    const candidate = parts.slice(0, i).join(" ").replace(/^"(.+)"$/, "$1");
+    if (await file_exists(candidate)) {
+      return {
+        command: candidate,
+        args: parts.slice(i)
+      };
     }
   }
-  
-  if (current) {
-    parts.push(current);
-  }
-
-  // Remove any quote marks from arguments
+  // Fallback: treat first part as command, rest as args
   const cleaned = parts.map(part => part.replace(/^"(.+)"$/, '$1'));
-  
   return {
     command: cleaned[0],
     args: cleaned.slice(1)
@@ -528,7 +516,7 @@ async function click_handler(item: any, type: MenuItemConfig['type'], command: M
           const res = await fetch(url);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const pages = await res.json();
-          let matches: any[] = [];
+          const matches: { no: number; sub: string; url: string }[] = [];
           for (const page of pages) {
             for (const thread of page.threads) {
               if (thread.sub && thread.sub.toLowerCase().includes(filter)) {
@@ -602,24 +590,43 @@ async function click_handler(item: any, type: MenuItemConfig['type'], command: M
 
       case "launch_cmd":
       await new Promise<void>((resolve, reject) => {
-        
-        const parsed = parseCommandAndArgs(command);
-        const cmd = new Deno.Command(parsed.command, { 
-          args: parsed.args
-        });
-        cmd.output()
-          .then(({ code, stdout, stderr }) => {
+        // Move async logic to an inner function
+        (async () => {
+          let exePath = command;
+          let args: string[] = [];
+          // If the command is quoted, remove quotes
+          if ((exePath.startsWith('"') && exePath.endsWith('"')) || (exePath.startsWith("'") && exePath.endsWith("'"))) {
+            exePath = exePath.slice(1, -1);
+          }
+          // Use improved parseCommandAndArgs
+          const parsed = await parseCommandAndArgs(command);
+          exePath = parsed.command;
+          args = parsed.args;
+          let cmd: Deno.Command;
+          if (Deno.build.os === "windows" && exePath.toLowerCase().endsWith(".lnk")) {
+            cmd = new Deno.Command("powershell", {
+              args: [
+                "-NoProfile",
+                "-Command",
+                `Start-Process -FilePath "${exePath}"`
+              ]
+            });
+          } else {
+            cmd = new Deno.Command(exePath, { args });
+          }
+          try {
+            const { code, stdout, stderr } = await cmd.output();
             if (code === 0) {
               console.log(new TextDecoder().decode(stdout));
             } else {
               console.error(new TextDecoder().decode(stderr));
             }
             resolve();
-          })
-          .catch((err) => {
+          } catch (err) {
             console.error(`Error launching ${command}:`, err);
             reject(err);
-          });
+          }
+        })();
       });
       break;
 
@@ -714,7 +721,7 @@ async function updateTray(silent=false) {
         enabled: item?.enabled ?? true,
         hidden: item?.hidden ?? false,
         icon: await resolve_icon(item.icon), 
-        click: async () => click_handler(item, item.type, item.command),
+        click: () => click_handler(item, item.type, item.command),
       }))
     ),
   };
@@ -785,7 +792,7 @@ function openURL(url: string) {
 // Launch a command specified in the menu
 async function launchCommand(cmd: string): Promise<void> {
   try {
-    const { command, args } = parseCommandAndArgs(cmd);
+    const { command, args } = await parseCommandAndArgs(cmd); // <-- add await
     const process = new Deno.Command(command, { args });
     const { code, stdout, stderr } = await process.output();
     if (code === 0) {
@@ -835,7 +842,7 @@ type cpu_util_CpuTimes = {
 
 function cpu_util_cpuSnapshot(): cpu_util_CpuTimes[] {
   try {    
-    let times = os.cpus().map(cpu => cpu.times);    
+    const times = os.cpus().map(cpu => cpu.times);    
     return times;
   } catch (e) {
     // If os.cpus() fails, return a single CPU with all zero values
@@ -865,7 +872,7 @@ function cpu_util_calculateCpuUsage(prev: cpu_util_CpuTimes[], curr: cpu_util_Cp
 
 let prevcpu_util_cpuSnapshot = cpu_util_cpuSnapshot();
 
-async function get_cpu_utilization(): Promise<number> {
+function get_cpu_utilization():  number {
   const curr = cpu_util_cpuSnapshot();
   const usages = cpu_util_calculateCpuUsage(prevcpu_util_cpuSnapshot, curr);
   prevcpu_util_cpuSnapshot = curr;
@@ -968,7 +975,7 @@ async function handler(req: Request): Promise<Response> {
         restartTrayIconRefreshInterval();
       }
 
-      userMenuItems = (body.menu ?? body).filter((item: MenuItemConfig) => {
+      userMenuItems = (body.menu ?? body).filter(async (item: MenuItemConfig) => {
         
         if (item.type === "separator") return true;
         if (!item.label || !item.command) return false;
@@ -981,10 +988,9 @@ async function handler(req: Request): Promise<Response> {
             if (typeof item.process_config.arguments === "string") {
               const argString = (typeof item.process_config.arguments === 'string' ? item.process_config.arguments : '').trim();
               if (argString.length > 0) {
-          
-                item.process_config.arguments = parseCommandAndArgs(argString).args;
-                if (item.process_config.arguments.length === 0) {
-          
+                const parsed = await parseCommandAndArgs(argString); // <-- add await
+                item.process_config.arguments = parsed.args;
+                if (!item.process_config.arguments || item.process_config.arguments.length === 0) {
                   item.process_config.arguments = [argString];
                 }
               } else {
@@ -1014,7 +1020,7 @@ async function handler(req: Request): Promise<Response> {
 }
 
 // Find an available port
-async function findAvailablePort(startPort: number, maxRetries: number): Promise<number> {
+  function findAvailablePort(startPort: number, maxRetries: number): number {
   for (let port = startPort; port < startPort + maxRetries; port++) {
     try {
       const listener = Deno.listen({ port, hostname: HOST });
@@ -1101,7 +1107,7 @@ async function start() {
 
 
   
-  PORT = await findAvailablePort(INITIAL_PORT, MAX_RETRIES);
+  PORT =   findAvailablePort(INITIAL_PORT, MAX_RETRIES);
 
 
 
