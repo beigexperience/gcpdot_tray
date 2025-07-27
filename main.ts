@@ -34,7 +34,7 @@ import SysTray, { Menu, MenuItem } from "https://deno.land/x/systray/mod.ts";
 import { open } from "https://deno.land/x/open@v0.0.5/index.ts";
 import { Handlebars, HandlebarsConfig } from 'https://deno.land/x/handlebars/mod.ts';
 import * as os from "node:os";
-const VERSION = "0.1.5-20250624";
+const VERSION = "0.1.6-20250628";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
 const FUDGE_ICON_FACTOR = 1; // @todo: fix the dot's current color on backend ??? we're off by one somewhere
@@ -51,7 +51,7 @@ const HANDLEBARS_CONFIG: HandlebarsConfig = {
   defaultLayout: 'main',
   helpers: {
     "json": (context: unknown) => JSON.stringify(context, null, 2),
-    "eq": (a: unknown, b: unknown) => a === b, // <-- Add eq helper here
+    "eq": (a: unknown, b: unknown) => a === b,
   },
   compilerOptions: undefined,
 };
