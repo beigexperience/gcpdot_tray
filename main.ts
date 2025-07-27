@@ -34,6 +34,7 @@ import SysTray, { Menu, MenuItem } from "https://deno.land/x/systray/mod.ts";
 import { open } from "https://deno.land/x/open@v0.0.5/index.ts";
 import { Handlebars, HandlebarsConfig } from 'https://deno.land/x/handlebars/mod.ts';
 import * as os from "node:os";
+import {isScreenTurnedOff} from "./os_integration_utils.ts";
 const VERSION = "0.1.6-20250628";
 
 let GCP_DOT_COLOR_AS_JSON = "https://get-gcp-dot-color.deno.dev/?json=true";
@@ -686,6 +687,16 @@ let trayKilling = false;
 
 // Create or update the tray icon
 async function updateTray(silent=false) {
+
+  if (await isScreenTurnedOff()) {
+    tray_updating = false;
+    if (!silent) {
+      console.log("Skipped tray update: screen is turned off.");
+    }
+    return;
+  }
+
+
   tray_updating = true;
   const icon = await getDynamicTrayIcon();
 
