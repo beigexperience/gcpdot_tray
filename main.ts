@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////
 //
-//   @todo: command not found shouldn't crash systray
+// 
 //   @todo: sanitization general and specific
 //   @todo: communication between tray and web interface - realtime websockets? event passing
 //   @todo: reorder should change elements while draging also without waiting to drop
@@ -9,12 +9,7 @@
 //   @todo: Mobile interface ?? Context menu on touch screen ?? Drag and drop on touch screen ??
 //   @todo: configuration allowable hosts and ports
 //   @todo: https not supported, investigate
-//   @todo: investigate if it is possible to have a single binary with all the necessary files 
-//              possible with temp file unpacking for icons, would need to turn exe/binary for icon to hex and write it, anti-vir might complain
-//              cosmopolitan redbean?? How dould Deno work with that
-//              for windows replace context menu lib with Powershell and load system dlls/ .net C# shit as FFI
-//              Deno 2.0/jsr actually working node library go_systray ? 
-//              Use cosmopolitan to install Deno, fetch script from github and fetch required dlls instead?
+
 //   @todo: consider:
 //                        Modify the go code myself???? 
 //                        https://github.com/getlantern/systray/blob/master/systray_windows.go
